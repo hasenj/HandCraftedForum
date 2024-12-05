@@ -1,0 +1,21 @@
+// Tips taken from https://github.com/microsoft/TypeScript/wiki/Performance#configuring-tsconfigjson-or-jsconfigjson
+{
+    "compilerOptions": {
+        "module": "es2020",
+        "target": "es2020",
+        "lib": ["es2020", "dom"],
+        "moduleResolution": "node",
+        "esModuleInterop": true,
+        "skipLibCheck": true,
+        "noEmit": true,
+        "strict": true,
+        "jsx": "react",
+        "jsxFactory": "preact.h",
+        "jsxFragmentFactory": "preact.Fragment",
+        "baseUrl": "frontend",
+        "noImplicitAny": true,
+        "paths": {
+            "@app/*": ["./*"]
+        }
+    },
+}
