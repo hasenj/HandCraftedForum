@@ -8,34 +8,57 @@ export async function fetch(route: string, prefix: string) {
 }
 
 type Form = {
-    data: server.UserListResponse
+    users: server.User[]
     name: string
+    email: string
+    password: string
     error: string
 }
 
 const useForm = vlens.declareHook((data: server.UserListResponse): Form => ({
-    data, name: "", error: ""
+    users: data.Users, name: "", email: "", password: "", error: ""
 }))
 
 export function view(route: string, prefix: string, data: server.UserListResponse): preact.ComponentChild {
     let form = useForm(data)
     return <div>
         <h3>Users</h3>
-        {form.data.AllUsernames.map(name => <div key={name}>{name}</div>)}
+        {form.users.map(user => <div key={user.Id}>{user.Username}</div>)}
         <h3>Add User</h3>
-        <input type="text" {...events.inputAttrs(vlens.ref(form, "name"))} />
-        <button onClick={vlens.cachePartial(onAddUserClicked, form)}>Add</button>
-        {form.name && <div>
-            You are inputting: <code>{form.name}</code>
-        </div>}
+        <form onSubmit={vlens.cachePartial(onAddUserClicked, form)}>
+            <div>
+                <label>Username:
+                    <input type="text" {...events.inputAttrs(vlens.ref(form, "name"))} />
+                </label>
+            </div>
+            <div>
+
+                <label>Email:
+                    <input type="text" {...events.inputAttrs(vlens.ref(form, "email"))} />
+                </label>
+            </div>
+            <div>
+
+                <label>Password:
+                    <input type="password" {...events.inputAttrs(vlens.ref(form, "password"))} />
+                </label>
+            </div>
+            <button onClick={vlens.cachePartial(onAddUserClicked, form)}>Add</button>
+        </form>
     </div>
 }
 
-async function onAddUserClicked(form: Form) {
-    let [resp, err] = await server.AddUser({Username: form.name})
+async function onAddUserClicked(form: Form, event: Event) {
+    event.preventDefault()
+
+    let [resp, err] = await server.AddUser({
+        Username: form.name, Email: form.email, Password: form.password
+    })
     if (resp) {
         form.name = ""
-        form.data = resp
+        form.password = ""
+        form.email = ""
+        form.users = resp.Users
         form.error = ""
     } else {
         form.error = err

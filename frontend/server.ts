@@ -2,13 +2,22 @@ import * as rpc from "vlens/rpc"
 
 export interface AddUserRequest {
     Username: string
+    Email: string
+    Password: string
 }
 
 export interface UserListResponse {
-    AllUsernames: string[]
+    Users: User[]
 }
 
 export interface Empty {
+}
+
+export interface User {
+    Id: number
+    Username: string
+    Email: string
+    IsAdmin: boolean
 }
 
 export async function AddUser(data: AddUserRequest): Promise<rpc.Response<UserListResponse>> {
