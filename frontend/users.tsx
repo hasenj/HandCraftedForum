@@ -1,6 +1,5 @@
 import * as preact from "preact"
 import * as vlens from "vlens";
-import * as events from "vlens/events"
 import * as server from "@app/server";
 
 export async function fetch(route: string, prefix: string) {
@@ -23,24 +22,24 @@ export function view(route: string, prefix: string, data: server.UserListRespons
     let form = useForm(data)
     return <div>
         <h3>Users</h3>
-        {form.users.map(user => <div key={user.Id}>{user.Username}</div>)}
+        {form.users.map(user => <div key={user.Id}><a href={`/post?user_id=${user.Id}`}>{user.Username}</a></div>)}
         <h3>Add User</h3>
         <form onSubmit={vlens.cachePartial(onAddUserClicked, form)}>
             <div>
                 <label>Username:
-                    <input type="text" {...events.inputAttrs(vlens.ref(form, "name"))} />
+                    <input type="text" {...vlens.attrsBindInput(vlens.ref(form, "name"))} />
                 </label>
             </div>
             <div>
 
                 <label>Email:
-                    <input type="text" {...events.inputAttrs(vlens.ref(form, "email"))} />
+                    <input type="text" {...vlens.attrsBindInput(vlens.ref(form, "email"))} />
                 </label>
             </div>
             <div>
 
                 <label>Password:
-                    <input type="password" {...events.inputAttrs(vlens.ref(form, "password"))} />
+                    <input type="password" {...vlens.attrsBindInput(vlens.ref(form, "password"))} />
                 </label>
             </div>
             <button onClick={vlens.cachePartial(onAddUserClicked, form)}>Add</button>

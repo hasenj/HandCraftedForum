@@ -4,6 +4,7 @@ import (
 	"strings"
 	"time"
 
+	"go.hasen.dev/generic"
 	"go.hasen.dev/vbeam"
 	"go.hasen.dev/vbolt"
 	"go.hasen.dev/vpack"
@@ -15,6 +16,7 @@ type Post struct {
 	CreatedAt time.Time
 
 	Content string
+	Tags    []string
 }
 
 func PackPost(self *Post, buf *vpack.Buffer) {
@@ -23,6 +25,7 @@ func PackPost(self *Post, buf *vpack.Buffer) {
 	vpack.Int(&self.UserId, buf)
 	vpack.UnixTime(&self.CreatedAt, buf)
 	vpack.String(&self.Content, buf)
+	vpack.Slice(&self.Tags, vpack.String, buf)
 }
 
 // ExtractHashTags returns a list of hashtags in content, without the hash itself
@@ -38,7 +41,7 @@ func ExtractHashTags(content string) (tags []string) {
 			end = len(content[start:])
 		}
 		tag := content[start : start+end]
-		content = content[end:]
+		content = content[start+end:]
 		const MaxTagLen = 20
 		if len(tag) > MaxTagLen {
 			tag = tag[:MaxTagLen]
@@ -66,16 +69,21 @@ func CreatePost(ctx *vbeam.Context, req CreatePostReq) (post Post, err error) {
 	// TODO: use sessions, and validate content before saving to db
 
 	const MaxPostSize = 1024 * 2
-	if len(req.Content) > MaxPostSize {
-		req.Content = req.Content[:MaxPostSize]
+
+	content := req.Content
+
+	if len(content) > MaxPostSize {
+		content = content[:MaxPostSize]
 	}
+	tags := ExtractHashTags(content)
 
 	vbeam.UseWriteTx(ctx)
 
 	post.Id = vbolt.NextIntId(ctx.Tx, PostsBkt)
 	post.UserId = req.UserId
-	post.Content = req.Content
+	post.Content = content
 	post.CreatedAt = time.Now()
+	post.Tags = tags
 
 	vbolt.Write(ctx.Tx, PostsBkt, post.Id, &post)
 
@@ -87,7 +95,6 @@ func CreatePost(ctx *vbeam.Context, req CreatePostReq) (post Post, err error) {
 		post.UserId,    // term (single)
 	)
 
-	tags := ExtractHashTags(post.Content)
 	vbolt.SetTargetTermsUniform(
 		ctx.Tx,         // transaction
 		HashTagsIdx,    // index reference
@@ -102,18 +109,25 @@ func CreatePost(ctx *vbeam.Context, req CreatePostReq) (post Post, err error) {
 }
 
 type Posts struct {
-	Posts []Post
+	Posts  []Post
+	Cursor []byte
 }
 
 type ByUserReq struct {
 	UserId int
+	Cursor []byte
 }
 
+const Limit = 2
+
 func PostsByUser(ctx *vbeam.Context, req ByUserReq) (resp Posts, err error) {
-	const Limit = 100
-	var window = vbolt.Window{Limit: Limit}
+	var window = vbolt.Window{
+		Limit:     Limit,
+		Direction: vbolt.IterateReverse,
+		Cursor:    req.Cursor,
+	}
 	var postIds []int
-	vbolt.ReadTermTargets(
+	resp.Cursor = vbolt.ReadTermTargets(
 		ctx.Tx,       // the transaction
 		UserPostsIdx, // the index
 		req.UserId,   // the query term
@@ -121,18 +135,26 @@ func PostsByUser(ctx *vbeam.Context, req ByUserReq) (resp Posts, err error) {
 		window,       // query windowing
 	)
 	vbolt.ReadSlice(ctx.Tx, PostsBkt, postIds, &resp.Posts)
+
+	generic.EnsureSliceNotNil(&resp.Posts)
+	generic.EnsureSliceNotNil(&resp.Cursor)
+
 	return
 }
 
 type ByHashtagReq struct {
 	Hashtag string
+	Cursor  []byte
 }
 
 func PostsByHashtag(ctx *vbeam.Context, req ByHashtagReq) (resp Posts, err error) {
-	const Limit = 100
-	var window = vbolt.Window{Limit: Limit}
+	var window = vbolt.Window{
+		Limit:     Limit,
+		Direction: vbolt.IterateReverse,
+		Cursor:    req.Cursor,
+	}
 	var postIds []int
-	vbolt.ReadTermTargets(
+	resp.Cursor = vbolt.ReadTermTargets(
 		ctx.Tx,      // the transaction
 		HashTagsIdx, // the index
 		req.Hashtag, // the query term
@@ -140,5 +162,8 @@ func PostsByHashtag(ctx *vbeam.Context, req ByHashtagReq) (resp Posts, err error
 		window,      // query windowing
 	)
 	vbolt.ReadSlice(ctx.Tx, PostsBkt, postIds, &resp.Posts)
+
+	generic.EnsureSliceNotNil(&resp.Posts)
+	generic.EnsureSliceNotNil(&resp.Cursor)
 	return
 }

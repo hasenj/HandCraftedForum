@@ -21,20 +21,24 @@ export interface CreatePostReq {
 export interface Post {
     Id: number
     UserId: number
-    CreatedAt: Time
+    CreatedAt: string
     Content: string
+    Tags: string[]
 }
 
 export interface ByUserReq {
     UserId: number
+    Cursor: string
 }
 
 export interface Posts {
     Posts: Post[]
+    Cursor: string
 }
 
 export interface ByHashtagReq {
     Hashtag: string
+    Cursor: string
 }
 
 export interface User {
@@ -42,35 +46,6 @@ export interface User {
     Username: string
     Email: string
     IsAdmin: boolean
-}
-
-export interface Time {
-    wall: number
-    ext: number
-    loc: Location | null
-}
-
-export interface Location {
-    name: string
-    zone: zone[]
-    tx: zoneTrans[]
-    extend: string
-    cacheStart: number
-    cacheEnd: number
-    cacheZone: zone | null
-}
-
-export interface zone {
-    name: string
-    offset: number
-    isDST: boolean
-}
-
-export interface zoneTrans {
-    when: number
-    index: number
-    isstd: boolean
-    isutc: boolean
 }
 
 export async function AddUser(data: AddUserRequest): Promise<rpc.Response<UserListResponse>> {

@@ -1,7 +1,7 @@
 {
   "dependencies": {
     "preact": "^10.25.1",
-    "vlens": "^0.1.5"
+    "vlens": "^0.1.6"
   },
   "devDependencies": {
     "typescript": "^5.7.2"

@@ -59,12 +59,6 @@ func TestPosting(t *testing.T) {
 			if len(res.Posts) != count {
 				t.Fatalf("Expected: %d, actual: %d", count, len(res.Posts))
 			}
-			t.Logf("%s =>", tag)
-			t.Log("[")
-			for _, post := range res.Posts {
-				t.Logf("    id: %d, content: `%s`\n", post.Id, post.Content)
-			}
-			t.Log("]")
 		})
 	}
 }
