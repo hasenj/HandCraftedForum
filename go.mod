@@ -5,7 +5,7 @@ go 1.22.1
 require (
 	go.hasen.dev/core_server v0.1.5
 	go.hasen.dev/vbeam v0.1.1
-	go.hasen.dev/vbolt v0.2.1
+	go.hasen.dev/vbolt v0.2.3
 	go.hasen.dev/vpack v0.2.0
 	golang.org/x/crypto v0.31.0
 )

@@ -26,19 +26,14 @@ export interface Post {
     Tags: string[]
 }
 
-export interface ByUserReq {
-    UserId: number
+export interface PostsQuery {
+    Query: string
     Cursor: string
 }
 
-export interface Posts {
+export interface PostsResponse {
     Posts: Post[]
-    Cursor: string
-}
-
-export interface ByHashtagReq {
-    Hashtag: string
-    Cursor: string
+    NextParams: PostsQuery
 }
 
 export interface User {
@@ -60,11 +55,7 @@ export async function CreatePost(data: CreatePostReq): Promise<rpc.Response<Post
     return await rpc.call<Post>('CreatePost', JSON.stringify(data));
 }
 
-export async function PostsByUser(data: ByUserReq): Promise<rpc.Response<Posts>> {
-    return await rpc.call<Posts>('PostsByUser', JSON.stringify(data));
-}
-
-export async function PostsByHashtag(data: ByHashtagReq): Promise<rpc.Response<Posts>> {
-    return await rpc.call<Posts>('PostsByHashtag', JSON.stringify(data));
+export async function QueryPosts(data: PostsQuery): Promise<rpc.Response<PostsResponse>> {
+    return await rpc.call<PostsResponse>('QueryPosts', JSON.stringify(data));
 }
 

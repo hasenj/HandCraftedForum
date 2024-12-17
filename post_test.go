@@ -21,6 +21,7 @@ func TestPosting(t *testing.T) {
 		fn(&ctx)
 	}
 
+	// data for creating posts
 	reqs := []CreatePostReq{
 		{UserId: 1, Content: "Hello #World #T1"},
 		{UserId: 1, Content: "Hello #World #T2"},
@@ -32,15 +33,21 @@ func TestPosting(t *testing.T) {
 		{UserId: 3, Content: "#Hello #World #T1"},
 	}
 
-	tagsCounts := map[string]int{
-		"T1": 3,
-		"T2": 2,
-		"T3": 1,
+	// expected counts for each query
+	queryCounts := map[string]int{
+		"t:T1": 3,
+		"t:T2": 2,
+		"t:T3": 1,
 
-		"World": 4,
-		"Hello": 3,
+		"t:World": 4,
+		"t:Hello": 3,
+
+		"u:1": 3,
+		"u:2": 2,
+		"u:3": 1,
 	}
 
+	// create posts
 	for _, req := range reqs {
 		withContext(func(ctx *vbeam.Context) {
 			_, err := CreatePost(ctx, req)
@@ -50,9 +57,10 @@ func TestPosting(t *testing.T) {
 		})
 	}
 
-	for tag, count := range tagsCounts {
+	// query posts
+	for tag, count := range queryCounts {
 		withContext(func(ctx *vbeam.Context) {
-			res, err := PostsByHashtag(ctx, ByHashtagReq{tag})
+			res, err := QueryPosts(ctx, PostsQuery{Query: tag})
 			if err != nil {
 				t.Fatal(err)
 			}

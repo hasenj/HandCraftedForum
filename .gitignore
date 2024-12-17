@@ -1,5 +1,6 @@
 .serve
 .stdout
 .stderr
-
+.vscode
+bin/
 node_modules

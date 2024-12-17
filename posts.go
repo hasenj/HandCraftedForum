@@ -1,6 +1,7 @@
 package forum
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
@@ -53,11 +54,8 @@ func ExtractHashTags(content string) (tags []string) {
 
 var PostsBkt = vbolt.Bucket(&dbInfo, "posts", vpack.FInt, PackPost)
 
-// UserPostsIdx term: user id. priority: timestamp. target: post id
-var UserPostsIdx = vbolt.IndexExt(&dbInfo, "user-posts", vpack.FInt, vpack.UnixTimeKey, vpack.FInt)
-
-// HashTagsIdx term: hashtag, priority: timestamp, term: post id
-var HashTagsIdx = vbolt.IndexExt(&dbInfo, "hashtags", vpack.StringZ, vpack.UnixTimeKey, vpack.FInt)
+// PostsIdx term: string, priority: timestamp, target: post id
+var PostsIdx = vbolt.IndexExt(&dbInfo, "posts_by", vpack.StringZ, vpack.UnixTimeKey, vpack.FInt)
 
 type CreatePostReq struct {
 	UserId  int
@@ -75,7 +73,6 @@ func CreatePost(ctx *vbeam.Context, req CreatePostReq) (post Post, err error) {
 	if len(content) > MaxPostSize {
 		content = content[:MaxPostSize]
 	}
-	tags := ExtractHashTags(content)
 
 	vbeam.UseWriteTx(ctx)
 
@@ -83,87 +80,62 @@ func CreatePost(ctx *vbeam.Context, req CreatePostReq) (post Post, err error) {
 	post.UserId = req.UserId
 	post.Content = content
 	post.CreatedAt = time.Now()
-	post.Tags = tags
+	post.Tags = ExtractHashTags(content)
 
 	vbolt.Write(ctx.Tx, PostsBkt, post.Id, &post)
-
-	vbolt.SetTargetSingleTermExt(
-		ctx.Tx,         // transaction
-		UserPostsIdx,   // index reference
-		post.Id,        // target
-		post.CreatedAt, // priority
-		post.UserId,    // term (single)
-	)
-
-	vbolt.SetTargetTermsUniform(
-		ctx.Tx,         // transaction
-		HashTagsIdx,    // index reference
-		post.Id,        // target
-		tags,           // terms (slice)
-		post.CreatedAt, // priority (same for all terms)
-	)
+	UpdatePostIndex(ctx.Tx, post)
 
 	vbolt.TxCommit(ctx.Tx)
-
 	return
 }
 
-type Posts struct {
-	Posts  []Post
+func UpdatePostIndex(tx *vbolt.Tx, post Post) {
+	terms := make([]string, 0, len(post.Tags)+3)
+	generic.Append(&terms, fmt.Sprintf("u:%d", post.UserId))
+	generic.Append(&terms, fmt.Sprintf("y:%d", post.CreatedAt.Year()))
+	generic.Append(&terms, fmt.Sprintf("m:%s", post.CreatedAt.Format("2006.01")))
+	for _, tag := range post.Tags {
+		generic.Append(&terms, "t:"+tag)
+	}
+	priority := post.CreatedAt
+	vbolt.SetTargetTermsUniform(
+		tx,       // transaction
+		PostsIdx, // index reference
+		post.Id,  // target
+		terms,    // terms (slice)
+		priority, // priority (same for all terms)
+	)
+}
+
+type PostsQuery struct {
+	Query  string
 	Cursor []byte
 }
 
-type ByUserReq struct {
-	UserId int
-	Cursor []byte
+type PostsResponse struct {
+	Posts      []Post
+	NextParams PostsQuery
 }
 
 const Limit = 2
 
-func PostsByUser(ctx *vbeam.Context, req ByUserReq) (resp Posts, err error) {
+func QueryPosts(ctx *vbeam.Context, req PostsQuery) (resp PostsResponse, err error) {
 	var window = vbolt.Window{
 		Limit:     Limit,
 		Direction: vbolt.IterateReverse,
 		Cursor:    req.Cursor,
 	}
 	var postIds []int
-	resp.Cursor = vbolt.ReadTermTargets(
-		ctx.Tx,       // the transaction
-		UserPostsIdx, // the index
-		req.UserId,   // the query term
-		&postIds,     // slice to store matching targets
-		window,       // query windowing
+	resp.NextParams = req
+	resp.NextParams.Cursor = vbolt.ReadTermTargets(
+		ctx.Tx,    // the transaction
+		PostsIdx,  // the index
+		req.Query, // the query term
+		&postIds,  // slice to store matching targets
+		window,    // query windowing
 	)
 	vbolt.ReadSlice(ctx.Tx, PostsBkt, postIds, &resp.Posts)
-
 	generic.EnsureSliceNotNil(&resp.Posts)
-	generic.EnsureSliceNotNil(&resp.Cursor)
-
-	return
-}
-
-type ByHashtagReq struct {
-	Hashtag string
-	Cursor  []byte
-}
-
-func PostsByHashtag(ctx *vbeam.Context, req ByHashtagReq) (resp Posts, err error) {
-	var window = vbolt.Window{
-		Limit:     Limit,
-		Direction: vbolt.IterateReverse,
-		Cursor:    req.Cursor,
-	}
-	var postIds []int
-	resp.Cursor = vbolt.ReadTermTargets(
-		ctx.Tx,      // the transaction
-		HashTagsIdx, // the index
-		req.Hashtag, // the query term
-		&postIds,    // slice to store matching targets
-		window,      // query windowing
-	)
-	vbolt.ReadSlice(ctx.Tx, PostsBkt, postIds, &resp.Posts)
-
-	generic.EnsureSliceNotNil(&resp.Posts)
-	generic.EnsureSliceNotNil(&resp.Cursor)
+	generic.EnsureSliceNotNil(&resp.NextParams.Cursor)
 	return
 }

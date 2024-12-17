@@ -15,49 +15,41 @@ export const searchHandler = {
 export async function fetchUserPosts(route: string, prefix: string) {
     const params = vlens.urlParams(route);
     const userId = vlens.intParam(params, "user_id", 0);
-    return server.PostsByUser({UserId: userId, Cursor: ""})
+    return server.QueryPosts({ Query: 'u:' + userId, Cursor: "" })
+}
+
+export async function fetchByHashtag(route: string, prefix: string) {
+    const params = vlens.urlParams(route);
+    const hashtag = params.get("hashtag") ?? "";
+    return server.QueryPosts({ Query: 't:' + hashtag, Cursor: "" });
 }
 
 type Form = {
     content: string
     posts: server.Post[]
-    cursor: string
+    nextQuery: server.PostsQuery
     sending: boolean
     error: string
 }
 
 const useForm = vlens.declareHook(
-    (data: server.Posts): Form => ({
+    (data: server.PostsResponse): Form => ({
         content: "",
         posts: data.Posts.slice(),
-        cursor: data.Cursor,
+        nextQuery: data.NextParams,
         sending: false,
         error: "",
     })
 )
 
-
-async function fetchMoreUserPosts(userId: number,form: Form) {
+async function fetchMorePosts(form: Form) {
     form.sending = true
-    let [resp, err] = await server.PostsByUser({UserId: userId, Cursor: form.cursor})
+    let [resp, err] = await server.QueryPosts(form.nextQuery)
     form.sending = false
     vlens.scheduleRedraw()
     if (resp) {
         form.posts.push(...resp.Posts)
-        form.cursor = resp.Cursor
-    } else {
-        form.error = err
-    }
-}
-
-async function fetchMoreByHashtag(hashtag: string, form: Form) {
-    form.sending = true
-    let [resp, err] = await server.PostsByHashtag({Hashtag: hashtag, Cursor: form.cursor})
-    form.sending = false
-    vlens.scheduleRedraw()
-    if (resp) {
-        form.posts.push(...resp.Posts)
-        form.cursor = resp.Cursor
+        form.nextQuery = resp.NextParams
     } else {
         form.error = err
     }
@@ -121,7 +113,7 @@ const clsPostAuthor = vlens.cssClass("author", {
     color: "gray",
 })
 
-export function viewUserPosts(route: string, prefix: string, data: server.Posts): preact.ComponentChild {
+export function viewUserPosts(route: string, prefix: string, data: server.PostsResponse): preact.ComponentChild {
     const params = vlens.urlParams(route);
     const userId = vlens.intParam(params, "user_id", 0);
     const form = useForm(data);
@@ -135,15 +127,14 @@ export function viewUserPosts(route: string, prefix: string, data: server.Posts)
             <button>Create</button>
         </form>
         {form.error && <div>Error: {form.error}</div>}
-        {viewPosts(form.posts)}
-        {form.cursor && <button disabled={form.sending} onClick={vlens.cachePartial(fetchMoreUserPosts, userId, form)}>More</button>}
+        {viewPosts(form)}
     </div>
 }
 
 async function onPostSubmit(userId: number, form: Form, event: Event) {
     event.preventDefault();
     form.sending = true;
-    let [resp, err] = await server.CreatePost({UserId: userId, Content: form.content});
+    let [resp, err] = await server.CreatePost({ UserId: userId, Content: form.content });
     form.sending = false;
     vlens.scheduleRedraw();
     if (resp) {
@@ -154,24 +145,28 @@ async function onPostSubmit(userId: number, form: Form, event: Event) {
     }
 }
 
-function viewPosts(posts: server.Post[]) {
-    return <div class={clsPosts}>
-        {posts.map(post => <div key={post.Id}>
-            <div class={clsPost}>
-                <div class={clsPostHeader}>
-                {/* <div class={clsPostAuthor}>@{post.UserId}</div> */}
-                <div class={clsTimestamp}>{postTimestamp(post.CreatedAt)}</div>
+function viewPosts(form: Form) {
+    return <div>
+        <div class={clsPosts}>
+            {form.posts.map(post => <div key={post.Id}>
+                <div class={clsPost}>
+                    <div class={clsPostHeader}>
+                        <div class={clsPostAuthor}>@{post.UserId}</div>
+                        <div class={clsTimestamp}>{postTimestamp(post.CreatedAt)}</div>
+                    </div>
+                    <div class={clsPostBody}>{post.Content}</div>
+                    <div class={clsTags}>
+                        {post.Tags.map(tag =>
+                            <div>
+                                <a key={tag} href={`/search?hashtag=${tag}`}>#{tag}</a>
+                            </div>
+                        )}
+                    </div>
                 </div>
-                <div class={clsPostBody}>{post.Content}</div>
-                <div class={clsTags}>
-                    {post.Tags.map(tag =>
-                        <div>
-                            <a key={tag} href={`/search?hashtag=${tag}`}>#{tag}</a>
-                        </div>
-                    )}
-                </div>
-            </div>
-        </div>)}
+            </div>)}
+        </div>
+        {form.nextQuery.Cursor && <button disabled={form.sending}
+            onClick={vlens.cachePartial(fetchMorePosts, form)}>More</button>}
     </div>
 }
 
@@ -191,18 +186,8 @@ function postTimestamp(ts: string): string {
 
 // ---
 
-export async function fetchByHashtag(route: string, prefix: string) {
-    const params = vlens.urlParams(route);
-    const hashtag = params.get("hashtag") ?? "";
-    return server.PostsByHashtag({Hashtag: hashtag, Cursor: ""});
-}
 
-export function viewByHashtag(route: string, prefix: string, data: server.Posts) {
-    const params = vlens.urlParams(route);
-    const hashtag = params.get("hashtag") ?? "";
+export function viewByHashtag(route: string, prefix: string, data: server.PostsResponse) {
     const form = useForm(data);
-    return <>
-        {viewPosts(data.Posts)}
-        {form.cursor && <button disabled={form.sending} onClick={vlens.cachePartial(fetchMoreByHashtag, hashtag, form)}>More</button>}
-    </>
+    return viewPosts(form)
 }
