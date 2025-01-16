@@ -3,4 +3,5 @@
 .stderr
 .vscode
 bin/
+hn/
 node_modules

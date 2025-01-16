@@ -22,8 +22,8 @@ export interface Post {
     Id: number
     UserId: number
     CreatedAt: string
+    ParentId: number
     Content: string
-    Tags: string[]
 }
 
 export interface PostsQuery {
@@ -34,6 +34,17 @@ export interface PostsQuery {
 export interface PostsResponse {
     Posts: Post[]
     NextParams: PostsQuery
+}
+
+export interface PostQuery {
+    PostId: number
+}
+
+export interface PostResponse {
+    PostIds: number[]
+    Posts: Record<number, Post>
+    Replies: Record<number, number>
+    Users: Record<number, User>
 }
 
 export interface User {
@@ -57,5 +68,9 @@ export async function CreatePost(data: CreatePostReq): Promise<rpc.Response<Post
 
 export async function QueryPosts(data: PostsQuery): Promise<rpc.Response<PostsResponse>> {
     return await rpc.call<PostsResponse>('QueryPosts', JSON.stringify(data));
+}
+
+export async function GetPost(data: PostQuery): Promise<rpc.Response<PostResponse>> {
+    return await rpc.call<PostResponse>('GetPost', JSON.stringify(data));
 }
 

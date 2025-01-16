@@ -14,20 +14,10 @@ func OpenDB(dbpath string) *vbolt.DB {
 	vbolt.InitBuckets(db, &dbInfo)
 
 	// migrations
-	const BatchSize = 20
-
-	vbolt.ApplyDBProcess(db, "2024-1217-unify-post-index", func() {
-		// delete old indexes
+	vbolt.ApplyDBProcess(db, "2025-0114-reset-posts", func() {
 		vbolt.WithWriteTx(db, func(tx *vbolt.Tx) {
-			tx.DeleteBucket([]byte("user-posts"))
-			tx.DeleteBucket([]byte("hashtags"))
-			tx.Commit()
-		})
-		// populate the new index
-		vbolt.TxWriteBatches(db, PostsBkt, BatchSize, func(tx *vbolt.Tx, batch []Post) {
-			for _, post := range batch {
-				UpdatePostIndex(tx, post)
-			}
+			tx.DeleteBucket([]byte(PostsBkt.Name))
+			tx.CreateBucket([]byte(PostsBkt.Name))
 			vbolt.TxCommit(tx)
 		})
 	})
@@ -46,6 +36,8 @@ func MakeApplication() *vbeam.Application {
 
 	vbeam.RegisterProc(app, CreatePost)
 	vbeam.RegisterProc(app, QueryPosts)
+
+	vbeam.RegisterProc(app, GetPost)
 
 	return app
 }

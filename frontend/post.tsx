@@ -12,6 +12,12 @@ export const searchHandler = {
     view: viewByHashtag,
 }
 
+export const itemHandler = {
+    fetch: fetchPostItem,
+    view: viewPostItem
+}
+
+
 export async function fetchUserPosts(route: string, prefix: string) {
     const params = vlens.urlParams(route);
     const userId = vlens.intParam(params, "user_id", 0);
@@ -22,6 +28,95 @@ export async function fetchByHashtag(route: string, prefix: string) {
     const params = vlens.urlParams(route);
     const hashtag = params.get("hashtag") ?? "";
     return server.QueryPosts({ Query: 't:' + hashtag, Cursor: "" });
+}
+
+async function fetchPostItem(route: string, prefix: string) {
+    const postId = vlens.intUrlArg(route, prefix)
+    return server.GetPost({PostId: postId})
+}
+
+const clsPostPlain = vlens.cssClass("post-plain", {
+    display: "flex",
+    flexDirection: "column",
+    gap: "10px",
+    padding: "10px 15px",
+    font: "12px sans-serif",
+    ".meta": {
+        display: "flex",
+        flexDirection: "row",
+        gap: "10px",
+        color: "#666",
+        fontSize: "12px",
+        "a": {
+            color: "inherit"
+        },
+        ".sep": {
+            flexGrow: 1,
+        }
+    },
+    ".content": {
+        whiteSpace: "pre-line",
+        fontFamily: "sans-serif",
+        fontSize: "16px",
+        color: "#444",
+        "p": {
+            marginBottom: "0",
+        },
+    },
+    width: "500px",
+    border: "1px solid gainsboro",
+    borderRadius: "4px",
+})
+
+const clsPostList = vlens.cssClass("post-list", {
+    display: "flex",
+    flexDirection: "column",
+    gap: "10px",
+})
+
+type PostItemPage = {
+    initialScrolled: boolean
+}
+var usePostItemPage = vlens.declareHook((data: server.PostResponse): PostItemPage => ({
+    initialScrolled: false
+}))
+
+function viewPostItem(route: string, prefix: string, data: server.PostResponse) {
+    const postId = vlens.intUrlArg(route, prefix)
+    let page = usePostItemPage(data)
+    if (!page.initialScrolled) {
+        requestAnimationFrame(() => {
+            let div = document.getElementById("post_" + postId)
+            if (div) {
+                div.scrollIntoView()
+                page.initialScrolled = true
+            }
+        })
+    }
+    return <div class={clsPostList}>
+        {data.PostIds.map(postId => singlePostView(postId, data))}
+    </div>
+}
+
+function singlePostView(postId: number, data: server.PostResponse) {
+    let post = data.Posts[postId]
+    let replies = data.Replies[postId]
+    let user = data.Users[post.UserId]
+    let permalink = "/item/" + post.Id
+    if (!post.Content) {
+        return <></>
+    }
+    return <div class={clsPostPlain} id={"post_" + postId}>
+    <div class="meta">
+        <div>@{user ? user.Username : post.UserId}</div>
+        <span class="sep" />
+        {replies > 0 && <a class="permalink" href={permalink}>{replies} replies</a>}
+    </div>
+    <div class="content" dangerouslySetInnerHTML={{ __html: post.Content }} />
+    <div class="meta">
+        <a class="permalink" href={permalink}>{postTimestamp(post.CreatedAt)}</a>
+    </div>
+</div>
 }
 
 type Form = {
@@ -155,13 +250,13 @@ function viewPosts(form: Form) {
                         <div class={clsTimestamp}>{postTimestamp(post.CreatedAt)}</div>
                     </div>
                     <div class={clsPostBody}>{post.Content}</div>
-                    <div class={clsTags}>
+                    {/* <div class={clsTags}>
                         {post.Tags.map(tag =>
                             <div>
                                 <a key={tag} href={`/search?hashtag=${tag}`}>#{tag}</a>
                             </div>
                         )}
-                    </div>
+                    </div> */}
                 </div>
             </div>)}
         </div>

@@ -4,6 +4,8 @@ import * as server from "@app/server"
 async function main() {
     vlens.initRoutes([
         vlens.routeHandler("/users", () => import("@app/users")),
+        vlens.routeHandler("/item/",
+            async () => (await import("@app/post")).itemHandler),
         vlens.routeHandler("/post",
             async () => (await import("@app/post")).postHandler),
         vlens.routeHandler("/search",

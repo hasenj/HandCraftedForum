@@ -97,20 +97,41 @@ var UsernameTaken = errors.New("UsernameTaken")
 var UsernameInvalid = errors.New("UsernameInvalid")
 var PasswordInvalid = errors.New("PasswordInvalid")
 
-func AddUser(ctx *vbeam.Context, req AddUserRequest) (resp UserListResponse, err error) {
+// AddUserTx adds the user without any validation; if username exists it will be
+// over written!
+func AddUserTx(tx *vbolt.Tx, req AddUserRequest, hash []byte) User {
+	var user User
+	user.Id = vbolt.NextIntId(tx, UsersBkt)
+	user.Username = req.Username
+	user.Email = req.Email
+	user.IsAdmin = user.Id < 2
+
+	vbolt.Write(tx, UsersBkt, user.Id, &user)
+	vbolt.Write(tx, PasswdBkt, user.Id, &hash)
+	vbolt.Write(tx, UsernameBkt, user.Username, &user.Id)
+	return user
+}
+
+func ValidateUserTx(tx *vbolt.Tx, req AddUserRequest) error {
 	if !isUsernameValid(req.Username) {
-		err = UsernameInvalid
-		return
+		return UsernameInvalid
 	}
 
 	// check username is not already taken
-	if vbolt.HasKey(ctx.Tx, UsernameBkt, req.Username) {
-		err = UsernameTaken
-		return
+	if vbolt.HasKey(tx, UsernameBkt, req.Username) {
+		return UsernameTaken
 	}
 
 	if !isPasswordValid(req.Password) {
-		err = PasswordInvalid
+		return PasswordInvalid
+	}
+
+	return nil
+}
+
+func AddUser(ctx *vbeam.Context, req AddUserRequest) (resp UserListResponse, err error) {
+	err = ValidateUserTx(ctx.Tx, req)
+	if err != nil {
 		return
 	}
 
@@ -119,15 +140,7 @@ func AddUser(ctx *vbeam.Context, req AddUserRequest) (resp UserListResponse, err
 	// start a write transaction!!
 	vbeam.UseWriteTx(ctx)
 
-	var user User
-	user.Id = vbolt.NextIntId(ctx.Tx, UsersBkt)
-	user.Username = req.Username
-	user.Email = req.Email
-	user.IsAdmin = user.Id < 2
-
-	vbolt.Write(ctx.Tx, UsersBkt, user.Id, &user)
-	vbolt.Write(ctx.Tx, PasswdBkt, user.Id, &hash)
-	vbolt.Write(ctx.Tx, UsernameBkt, user.Username, &user.Id)
+	AddUserTx(ctx.Tx, req, hash)
 
 	resp.Users = fetchUsers(ctx.Tx)
 	generic.EnsureSliceNotNil(&resp.Users)
